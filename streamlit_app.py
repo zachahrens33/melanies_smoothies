@@ -1,54 +1,54 @@
-# Import python packages
+# streamlit_app.py
+
 import streamlit as st
-from snowflake.snowpark.functions import col
 from snowflake.snowpark.session import Session
+from snowflake.snowpark.functions import col
 
-# Set page title
-st.set_page_config(page_title="Smoothie Customizer", page_icon="🥤")
-
-# Set Streamlit title
-st.title(f"Customize Your Smoothie :cup_with_straw: (v{st.__version__})")
-st.write("Choose the fruits you want in your custom smoothie!")
-
-# Initialize Snowpark session (update with your actual Snowflake connection info if needed)
+# Cached session creation using Streamlit secrets
 @st.cache_resource
 def get_snowflake_session():
     connection_parameters = {
-        "account": "your_account",
-        "user": "your_user",
-        "password": "your_password",
-        "role": "your_role",
-        "warehouse": "your_warehouse",
-        "database": "smoothies",
-        "schema": "public"
+        "account": st.secrets["connections.snowflake"]["account"],
+        "user": st.secrets["connections.snowflake"]["user"],
+        "password": st.secrets["connections.snowflake"]["password"],
+        "role": st.secrets["connections.snowflake"]["role"],
+        "warehouse": st.secrets["connections.snowflake"]["warehouse"],
+        "database": st.secrets["connections.snowflake"]["database"],
+        "schema": st.secrets["connections.snowflake"]["schema"]
     }
     return Session.builder.configs(connection_parameters).create()
 
+# Connect to Snowflake
 session = get_snowflake_session()
 
-# Fetch fruit list from Snowflake
-fruit_df = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'))
-fruit_list = [row['FRUIT_NAME'] for row in fruit_df.collect()]
+# App UI
+st.title(f"Customize Your Smoothie :cup_with_straw: {st.__version__}")
+st.write("Choose the fruits you want in your custom smoothie!")
 
-# Input fields
+# Input: Name on order
 name_on_order = st.text_input("Name on Smoothie:")
+if name_on_order:
+    st.write("The name of your smoothie will be:", name_on_order)
+
+# Load fruit options from Snowflake
+fruit_df = session.table("smoothies.public.fruit_options").select(col("FRUIT_NAME"))
+fruit_list = [row["FRUIT_NAME"] for row in fruit_df.collect()]
+
+# Fruit selection input
 ingredients_list = st.multiselect(
-    'Choose up to 5 ingredients:',
-    fruit_list,
+    "Choose up to 5 ingredients:",
+    options=fruit_list,
     max_selections=5
 )
 
-# Submit order logic
-if st.button("Submit Order"):
-    if not name_on_order:
-        st.warning("Please enter a name for your smoothie.")
-    elif not ingredients_list:
-        st.warning("Please select at least one ingredient.")
-    else:
-        ingredients_string = ', '.join(ingredients_list)
-
-        # Insert order using parameterized Snowpark method
-        session.table("smoothies.public.orders").insert([
-            {"ingredients": ingredients_string, "name_on_order": name_on_order}
-        ])
-        st.success(f"Your smoothie has been ordered, {name_on_order}! ✅")
+# Order submission
+if ingredients_list and name_on_order:
+    ingredients_string = ", ".join(ingredients_list)
+    
+    if st.button("Submit Order"):
+        insert_stmt = f"""
+        INSERT INTO smoothies.public.orders (ingredients, name_on_order)
+        VALUES ('{ingredients_string}', '{name_on_order}')
+        """
+        session.sql(insert_stmt).collect()
+        st.success("Your Smoothie is ordered!", icon="✅")
