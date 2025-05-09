@@ -43,7 +43,7 @@ try:
                 search_on=pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
                 #st.write('The search value for ', fruit_chosen,' is ', search_on, '.')
                 
-                st.subheader(fruit_chosen + "Nutritional Information")
+                st.subheader(fruit_chosen + " Nutritional Information")
                 smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/" + search_on)
                 smoothiefroot_response.raise_for_status()  # Raise an error for bad responses (4xx or 5xx)
                 
